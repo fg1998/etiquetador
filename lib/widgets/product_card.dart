@@ -34,14 +34,42 @@ class ProductCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              label,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyLarge
-                  ?.copyWith(fontWeight: FontWeight.w600),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Nome do produto
+                Text(
+                  item.nome,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${item.dias} dias',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontSize: 14,
+                            color: Colors.grey[700],
+                          ),
+                    ),
+                    if (item.refrigeracao)
+                      Text(
+                        'Necessita refrigeração',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontSize: 13,
+                            color: Colors.redAccent,
+                            fontWeight: FontWeight.w500),
+                      ),
+                  ],
+                ),
+
+                const SizedBox(height: 1)
+              ],
             ),
-            const SizedBox(height: 10),
 
             // ====== AÇÕES ======
             Row(
@@ -50,7 +78,7 @@ class ProductCard extends StatelessWidget {
                 // A Wrap agora está dentro de um Expanded para poder quebrar linha
                 Expanded(
                   child: Wrap(
-                    spacing: 10,
+                    spacing: 1,
                     runSpacing: 8, // espaço entre linhas quando quebrar
                     children: [
                       IconButton(

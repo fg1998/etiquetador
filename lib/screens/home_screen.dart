@@ -178,18 +178,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Row(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(.12),
-                          child: const Icon(Icons.label_important_outline_rounded),
-                        ),
+                      children: [               
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Olá!', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 2),
                               Text(
                                 bt.connected
                                     ? 'Impressora: ${bt.currentAddress}'
@@ -201,7 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         TextButton.icon(
                           onPressed: () => Navigator.pushNamed(context, ConfigScreen.route),
-                          icon: const Icon(Icons.print_rounded),
+                          icon: const Icon(Icons.settings_rounded, color: Colors.blueAccent),
                           label: const Text('Config'),
                         ),
                       ],
