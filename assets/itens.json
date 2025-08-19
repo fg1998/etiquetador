@@ -1,0 +1,4 @@
+[
+  { "nome": "Arroz",  "dias": 10, "refrigeracao": false },
+  { "nome": "Feij\u00e3o", "dias": 5,  "refrigeracao": true }
+]
