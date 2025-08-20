@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'bluetooth_service.dart';
 import '../models/item.dart';
+import 'package:intl/intl.dart';
 
 class PrintService {
   static final _bt = BluetoothService.instance;
@@ -34,16 +35,26 @@ class PrintService {
     // Latin-1 costuma ir bem; se acentos falharem, tente 17 (CP858) ou 0 (CP437)
     _escCodePage(16);
 
+    final agora = DateTime.now();
+    final hoje = DateTime(agora.year, agora.month, agora.day);
+    final dataFutura = hoje.add(Duration(days: item.dias));   
+    final validadeStr = DateFormat('dd/MM/yyyy').format(dataFutura);
+    final dataHojeStr = DateFormat('dd/MM/yyyy').format(hoje);
+
     // Cabeçalho
-    _escAlign(1);
+    _escAlign(0);
     _escBold(true);
-    _escSize(2, 2);
+    _escSize(1, 2);
     _escPrint(item.nome);
+    _escPrint('Validade: $validadeStr');
     _escBold(false);
     _escSize(1, 1);
+    
+   
 
     _escAlign(0);
-    _escPrint('Validade em: ${item.dias} dia(s)');
+    
+    _escPrint('Manipulação: $dataHojeStr');
     _escPrint('Refrigeração: ${item.refrigeracao ? "SIM" : "NÃO"}');
 
     // Espaço proporcional “fake” só pra dar respiro

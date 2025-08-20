@@ -33,23 +33,37 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  /// Regras:
+  /// - Se existir impressora usada por último (em SharedPreferences), tenta reconectar.
+  /// - Se a reconexão falhar, **aí sim** abre a lista para o usuário escolher.
+  /// - Se não existir impressora salva, não abre lista automaticamente.
   Future<void> _maybeAskPrinter() async {
     final bt = BluetoothService.instance;
-    await bt.bootstrap();
+    await bt.bootstrap(); // tenta reconectar por dentro (maybeReconnect)
+
     if (!bt.connected) {
-      final bonded = await bt.bondedDevices();
-      if (bonded.isEmpty) return;
-      final device = await _pickDevice(bonded.map((e) => (e.name ?? '(sem nome)', e.address)).toList());
-      if (device != null) {
-        setState(() => _connecting = true);
-        await bt.connect(device.$2);
-        setState(() => _connecting = false);
+      final prefs = await SharedPreferences.getInstance();
+      final last = prefs.getString('last_address');
+      // Só abre picker se havia uma impressora salva e a tentativa automática falhou
+      if (last != null) {
+        final bonded = await bt.bondedDevices();
+        if (bonded.isEmpty) return;
+        final device = await _pickDevice(
+          bonded
+              .map<(String, String)>((e) => (e.name ?? '(sem nome)', e.address))
+              .toList(),
+        );
+        if (device != null) {
+          setState(() => _connecting = true);
+          await bt.connect(device.$2, name: device.$1);
+          setState(() => _connecting = false);
+        }
       }
     }
   }
 
-  Future<(String,String)?> _pickDevice(List<(String,String)> list) async {
-    return showModalBottomSheet<(String,String)>(
+  Future<(String, String)?> _pickDevice(List<(String, String)> list) async {
+    return showModalBottomSheet<(String, String)>(
       context: context,
       showDragHandle: true,
       shape: const RoundedRectangleBorder(
@@ -146,6 +160,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final bt = BluetoothService.instance;
+    final headerText = bt.connected
+        ? 'Impressora: ${(bt.currentName ?? '(sem nome)')} • ${bt.currentAddress}'
+        : _connecting
+            ? 'Conectando à impressora...'
+            : 'Nenhuma impressora conectada';
 
     return Scaffold(
       appBar: AppBar(
@@ -169,7 +188,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                 children: [
-                  // Cabeçalho “comercial”
+                  // Cabeçalho de status da impressora
                   Container(
                     padding: const EdgeInsets.all(16),
                     margin: const EdgeInsets.only(bottom: 12),
@@ -178,25 +197,19 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Row(
-                      children: [               
+                      children: [
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                bt.connected
-                                    ? 'Impressora: ${bt.currentAddress}'
-                                    : _connecting ? 'Conectando à impressora...' : 'Nenhuma impressora conectada',
-                                style: TextStyle(color: Colors.black54),
-                              ),
+                              Text(headerText, style: const TextStyle(color: Colors.black54)),
                             ],
                           ),
                         ),
-                        TextButton.icon(
-                          onPressed: () => Navigator.pushNamed(context, ConfigScreen.route),
-                          icon: const Icon(Icons.settings_rounded, color: Colors.blueAccent),
-                          label: const Text('Config'),
+                        Icon(
+                          bt.connected ? Icons.print_rounded : Icons.print_disabled_rounded,
+                          color: bt.connected ? Colors.green : Colors.red,
                         ),
                       ],
                     ),

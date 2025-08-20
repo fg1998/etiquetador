@@ -10,7 +10,10 @@ class BluetoothService {
 
   BluetoothConnection? _conn;
   StreamSubscription<Uint8List>? _rx;
+
   String? currentAddress;
+  String? currentName;
+
   bool get connected => _conn != null;
 
   Future<void> bootstrap() async {
@@ -22,7 +25,7 @@ class BluetoothService {
     final statuses = await [
       Permission.bluetoothConnect,
       Permission.bluetoothScan,
-      Permission.locationWhenInUse, // ajuda Android <= 11
+      Permission.locationWhenInUse, // para Android <= 11
     ].request();
 
     if (statuses[Permission.bluetoothConnect]?.isGranted != true ||
@@ -42,21 +45,29 @@ class BluetoothService {
   Future<void> maybeReconnect() async {
     final prefs = await SharedPreferences.getInstance();
     final addr = prefs.getString('last_address');
+    final name = prefs.getString('last_name');
     if (addr != null) {
-      await connect(addr);
+      await connect(addr, name: name);
     }
   }
 
   Future<List<BluetoothDevice>> bondedDevices() async =>
       FlutterBluetoothSerial.instance.getBondedDevices();
 
-  Future<bool> connect(String address) async {
+  Future<bool> connect(String address, {String? name}) async {
     try {
       final c = await BluetoothConnection.toAddress(address);
       _conn = c;
       currentAddress = address;
+      if (name != null && name.isNotEmpty) {
+        currentName = name;
+      }
+
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('last_address', address);
+      if (currentName != null && currentName!.isNotEmpty) {
+        await prefs.setString('last_name', currentName!);
+      }
 
       _rx?.cancel();
       _rx = c.input?.listen((_) {}, onDone: disconnect, onError: (_) => disconnect());

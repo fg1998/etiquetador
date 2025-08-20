@@ -27,8 +27,9 @@ class _ConfigScreenState extends State<ConfigScreen> {
     final prefs = await SharedPreferences.getInstance();
     _largCtrl.text = (prefs.getInt('cfg_largura') ?? 48).toString();
     _altCtrl.text  = (prefs.getInt('cfg_altura')  ?? 30).toString();
-    _addr = prefs.getString('last_address');
-    setState(() {});
+    _addr = BluetoothService.instance.currentAddress ?? prefs.getString('last_address');
+    _name = BluetoothService.instance.currentName ?? prefs.getString('last_name');
+    if (mounted) setState(() {});
   }
 
   Future<void> _save() async {
@@ -41,14 +42,13 @@ class _ConfigScreenState extends State<ConfigScreen> {
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Configuração salva')));
   }
 
-  Future<void> _selectPrinter() async {
+  Future<void> _pickAndConnect() async {
     final bt = BluetoothService.instance;
     final list = await bt.bondedDevices();
     if (list.isEmpty && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nenhum dispositivo pareado')));
       return;
     }
-
     final chosen = await showModalBottomSheet<BluetoothDevice>(
       context: context,
       showDragHandle: true,
@@ -60,7 +60,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
         itemBuilder: (_, i) {
           final d = list[i];
           return ListTile(
-            leading: const Icon(Icons.print_rounded),
+            leading: const Icon(Icons.bluetooth_rounded),
             title: Text(d.name?.isNotEmpty == true ? d.name! : '(sem nome)'),
             subtitle: Text(d.address),
             onTap: () => Navigator.pop(context, d),
@@ -72,21 +72,37 @@ class _ConfigScreenState extends State<ConfigScreen> {
     );
 
     if (chosen != null) {
-      final ok = await bt.connect(chosen.address);
+      final ok = await bt.connect(chosen.address, name: chosen.name);
       if (ok) {
         setState(() {
           _addr = chosen.address;
           _name = chosen.name;
         });
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('last_address', chosen.address);
+        await prefs.setString('last_name', chosen.name ?? '(sem nome)');
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Falha ao conectar')));
       }
     }
   }
 
+  Future<void> _disconnect() async {
+    final bt = BluetoothService.instance;
+    bt.disconnect();
+    setState(() {
+      _addr = null;
+      _name = null;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Desconectado')));
+  }
+
   @override
   Widget build(BuildContext context) {
-    final addrTxt = _addr == null ? 'Nenhuma' : (_name ?? '(sem nome)') + ' • ' + _addr!;
+    final addrTxt = (_addr == null && _name == null)
+        ? 'Nenhuma'
+        : '${_name ?? '(sem nome)'} • ${_addr ?? ''}';
+
     return Scaffold(
       appBar: AppBar(title: const Text('Configuração')),
       body: ListView(
@@ -121,15 +137,32 @@ class _ConfigScreenState extends State<ConfigScreen> {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.print_rounded),
-                  title: const Text('Selecionar impressora'),
+                  title: const Text('Impressora atual'),
                   subtitle: Text(addrTxt),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _selectPrinter,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _disconnect,
+                      icon: const Icon(Icons.link_off),
+                      label: const Text('Desconectar'),
+                    ),
+                    const SizedBox(width: 12),
+                    FilledButton.icon(
+                      onPressed: _pickAndConnect,
+                      icon: const Icon(Icons.link),
+                      label: const Text('Trocar'),
+                    ),
+                  ],
                 ),
                 if (BluetoothService.instance.connected)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Text('Conectado', style: TextStyle(color: Colors.green.shade700)),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Text('Conectado', style: TextStyle(color: Colors.green.shade700)),
+                    ),
                   ),
               ]),
             ),
