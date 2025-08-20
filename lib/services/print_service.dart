@@ -41,6 +41,8 @@ class PrintService {
     final validadeStr = DateFormat('dd/MM/yyyy').format(dataFutura);
     final dataHojeStr = DateFormat('dd/MM/yyyy').format(hoje);
 
+    final resp = (prefs.getString('user_name') ?? 'Responsável pelo setor');
+
     // Cabeçalho
     _escAlign(0);
     _escBold(true);
@@ -55,7 +57,11 @@ class PrintService {
     _escAlign(0);
     
     _escPrint('Manipulação: $dataHojeStr');
-    _escPrint('Refrigeração: ${item.refrigeracao ? "SIM" : "NÃO"}');
+    _escPrint('Manipulado por: ' + resp);
+    _escPrint('Refrigeração: ' + (
+      item.refrigeracao == Refrigeracao.congelado ? 'CONGELADO' :
+      item.refrigeracao == Refrigeracao.refrigerado ? 'REFRIGERADO' : 'AMBIENTE'
+    ));
 
     // Espaço proporcional “fake” só pra dar respiro
     final feeds = (altura / 10).clamp(1, 6).toInt();

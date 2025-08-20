@@ -1,4 +1,8 @@
 [
-  { "nome": "Arroz",  "dias": 10, "refrigeracao": false },
-  { "nome": "Feijão", "dias": 5,  "refrigeracao": true }
+  { "nome": "Arroz",          "dias": 10, "refrigeracao": "ambiente"   },
+  { "nome": "Feijão",         "dias": 5,  "refrigeracao": "refrigerado"},
+  { "nome": "Feijão preto",   "dias": 6,  "refrigeracao": "congelado"  },
+  { "nome": "Macarrão",       "dias": 8,  "refrigeracao": "ambiente"   },
+  { "nome": "Molho de tomate","dias": 3,  "refrigeracao": "refrigerado"},
+  { "nome": "Carne moída",    "dias": 2,  "refrigeracao": "congelado"  }
 ]

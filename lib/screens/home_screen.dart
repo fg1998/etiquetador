@@ -89,43 +89,68 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _editItem({Item? item, int? index, bool duplicate = false}) async {
     final nomeCtrl = TextEditingController(text: duplicate && item != null ? '${item.nome} (2)' : item?.nome ?? '');
     final diasCtrl = TextEditingController(text: item?.dias.toString() ?? '');
-    bool refrig = item?.refrigeracao ?? false;
+    Refrigeracao refType = item?.refrigeracao ?? Refrigeracao.ambiente;
 
     final res = await showDialog<Item>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text(duplicate ? 'Duplicar produto' : (item == null ? 'Novo produto' : 'Editar produto')),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(decoration: const InputDecoration(labelText: 'Nome'), controller: nomeCtrl),
-            const SizedBox(height: 8),
-            TextField(decoration: const InputDecoration(labelText: 'Dias'), controller: diasCtrl, keyboardType: TextInputType.number),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Text('Refrigeração'),
-                const SizedBox(width: 8),
-                Switch(
-                  value: refrig,
-                  onChanged: (v) {
-                    refrig = v;
-                    (context as Element).markNeedsBuild();
-                  },
-                ),
-              ],
+      builder: (_) => StatefulBuilder(
+        builder: (dialogCtx, setModalState) {
+          return AlertDialog(
+            title: Text(duplicate ? 'Duplicar produto' : (item == null ? 'Novo produto' : 'Editar produto')),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    decoration: const InputDecoration(labelText: 'Nome'),
+                    controller: nomeCtrl,
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    decoration: const InputDecoration(labelText: 'Dias'),
+                    controller: diasCtrl,
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<Refrigeracao>(
+                    value: refType,
+                    decoration: const InputDecoration(labelText: 'Refrigeração'),
+                    isExpanded: true,
+                    items: const [
+                      DropdownMenuItem(
+                        value: Refrigeracao.ambiente,
+                        child: Text('Ambiente'),
+                      ),
+                      DropdownMenuItem(
+                        value: Refrigeracao.refrigerado,
+                        child: Text('Refrigerado'),
+                      ),
+                      DropdownMenuItem(
+                        value: Refrigeracao.congelado,
+                        child: Text('Congelado'),
+                      ),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) setModalState(() => refType = v);
+                    },
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-          FilledButton(onPressed: () {
-            final d = int.tryParse(diasCtrl.text.trim());
-            final n = nomeCtrl.text.trim();
-            if (n.isEmpty || d == null) return;
-            Navigator.pop(context, Item(nome: n, dias: d, refrigeracao: refrig));
-          }, child: const Text('Salvar')),
-        ],
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+              FilledButton(
+                onPressed: () {
+                  final d = int.tryParse(diasCtrl.text.trim());
+                  final n = nomeCtrl.text.trim();
+                  if (n.isEmpty || d == null) return;
+                  Navigator.pop(context, Item(nome: n, dias: d, refrigeracao: refType));
+                },
+                child: const Text('Salvar'),
+              ),
+            ],
+          );
+        },
       ),
     );
 

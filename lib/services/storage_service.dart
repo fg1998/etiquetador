@@ -23,6 +23,21 @@ class StorageService {
     }
   }
 
+static Future<void> resetUserItems() async {
+  final f = await _userFileHandle();
+  try {
+    // lê o default do assets e reescreve o arquivo do usuário
+    final defaults = await rootBundle.loadString('assets/itens.json');
+    await f.create(recursive: true);
+    await f.writeAsString(defaults, flush: true);
+  } catch (e) {
+    // fallback seguro: se algo der errado, deixa uma lista vazia
+    await f.writeAsString('[]', flush: true);
+  }
+}
+
+
+
   static Future<List<Item>> readAll() async {
     final f = await _userFileHandle();
     final raw = await f.readAsString();
