@@ -84,12 +84,13 @@ class _ConfigScreenState extends State<ConfigScreen> {
     );
 
     if (chosen != null) {
-      final ok = await bt.connect(chosen.address, name: chosen.name);
-      if (ok) {
+      final status = await bt.connect(chosen.address, name: chosen.name);
+      if (status == ConnectStatus.connected || status == ConnectStatus.alreadyConnected) {
         setState(() {
           _addr = chosen.address;
           _name = chosen.name;
         });
+        // prefs já são salvas no serviço; se quiser manter, pode deixar as linhas abaixo
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('last_address', chosen.address);
         await prefs.setString('last_name', chosen.name ?? '(sem nome)');

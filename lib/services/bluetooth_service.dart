@@ -1,8 +1,19 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:flutter/services.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+enum ConnectStatus {
+  connected,
+  alreadyConnected,
+  timeout,
+  deviceOffOrUnreachable,
+  bluetoothOff,
+  permissionDenied,
+  unknownError,
+}
 
 class BluetoothService {
   BluetoothService._();
@@ -23,18 +34,21 @@ class BluetoothService {
 
   // ======= Permissões + enable BT =======
   Future<void> _ensurePermissions() async {
-    // Android 12+ precisa de BLUETOOTH_CONNECT/SCAN; anteriores usavam location.
+    // Android 12+ usa BLUETOOTH_CONNECT/SCAN; anteriores podem pedir location.
     final perms = <Permission>[
       Permission.bluetooth,
       Permission.bluetoothScan,
       Permission.bluetoothConnect,
-      Permission.location,
+      Permission.location, // safe fallback p/ Android < 12
     ];
 
     for (final p in perms) {
       final s = await p.status;
       if (!s.isGranted) {
-        await p.request();
+        final rs = await p.request();
+        if (!rs.isGranted) {
+          throw PlatformException(code: 'permission_denied', message: 'Permissão $p negada');
+        }
       }
     }
 
@@ -43,33 +57,42 @@ class BluetoothService {
     try {
       final state = await inst.state;
       if (state != BluetoothState.STATE_ON) {
-        await inst.requestEnable();
+        final enabled = await inst.requestEnable();
+        if (enabled != true) {
+          throw PlatformException(code: 'bluetooth_off', message: 'Bluetooth desligado');
+        }
       }
     } catch (_) {
-      // Ignora exceção de plataformas não-Android
+      // Ignora exceções em plataformas não-Android
     }
   }
 
   /// Tenta preparar o serviço e reconectar na última impressora salva.
-  Future<void> bootstrap() async {
-    await _ensurePermissions();
+  /// Retorna true se reconectou; false caso contrário.
+  Future<bool> bootstrap() async {
+    try {
+      await _ensurePermissions();
+    } on PlatformException {
+      // sem permissões ou BT off – deixa a UI decidir
+      return false;
+    }
+
+    // Se já estamos conectados, mantém.
+    if (connected) return true;
 
     final prefs = await SharedPreferences.getInstance();
     final addr = prefs.getString(_kLastAddress);
     final name = prefs.getString(_kLastName);
 
-    // Se já estamos conectados, mantém.
-    if (connected) return;
-
     if (addr != null && addr.isNotEmpty) {
-      try {
-        await connect(addr, name: name);
-      } catch (e) {
-        // Falhou na reconexão; deixa desconectado para a UI abrir o seletor.
-        // print('Falha ao reconectar em $addr: $e');
-        disconnect();
+      final status = await connect(addr, name: name);
+      if (status == ConnectStatus.connected || status == ConnectStatus.alreadyConnected) {
+        return true;
       }
+      // Falhou na reconexão; mantém desconectado para a UI abrir o seletor.
+      return false;
     }
+    return false;
   }
 
   Future<List<BluetoothDevice>> bondedDevices() async {
@@ -78,12 +101,19 @@ class BluetoothService {
   }
 
   /// Conecta e **salva** o endereço/nome para futuras reconexões.
-  Future<bool> connect(String address, {String? name}) async {
-    await _ensurePermissions();
+  /// Nunca lança exceção; retorna um ConnectStatus para a UI.
+  Future<ConnectStatus> connect(String address, {String? name, Duration timeout = const Duration(seconds: 8)}) async {
+    try {
+      await _ensurePermissions();
+    } on PlatformException catch (e) {
+      if (e.code == 'permission_denied') return ConnectStatus.permissionDenied;
+      if (e.code == 'bluetooth_off') return ConnectStatus.bluetoothOff;
+      return ConnectStatus.unknownError;
+    }
 
     // Se já estiver conectado ao mesmo endereço, mantém.
     if (connected && currentAddress == address) {
-      return true;
+      return ConnectStatus.alreadyConnected;
     }
 
     // Fecha conexão anterior, se houver.
@@ -92,45 +122,72 @@ class BluetoothService {
     await _conn?.close();
     _conn = null;
 
-    final c = await BluetoothConnection.toAddress(address);
-    _conn = c;
-    currentAddress = address;
-    if (name != null && name.isNotEmpty) {
-      currentName = name;
+    try {
+      // Protege com timeout para não travar quando o dispositivo estiver desligado.
+      final c = await BluetoothConnection.toAddress(address).timeout(timeout);
+      _conn = c;
+      currentAddress = address;
+      if (name != null && name.isNotEmpty) {
+        currentName = name;
+      }
+
+      // Listener opcional de entrada
+      _rx = _conn!.input?.listen(
+        (data) {
+          // print('RX(${data.length}): $data');
+        },
+        onDone: () {
+          _conn = null;
+        },
+        onError: (_) {
+          _conn = null;
+        },
+        cancelOnError: true,
+      );
+
+      // Salva prefs para reconectar na próxima execução
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kLastAddress, address);
+      if ((name ?? '').isNotEmpty) {
+        await prefs.setString(_kLastName, name!);
+      }
+
+      return ConnectStatus.connected;
+    } on TimeoutException {
+      // Garantir limpeza do socket parcial
+      await _safeClose();
+      return ConnectStatus.timeout;
+    } on PlatformException catch (e) {
+      // Erros mais comuns quando o dispositivo está desligado/fora de alcance
+      final msg = (e.message ?? '').toLowerCase();
+      if (e.code == 'connect_error' ||
+          msg.contains('read failed') ||
+          msg.contains('socket') ||
+          msg.contains('timeout')) {
+        await _safeClose();
+        return ConnectStatus.deviceOffOrUnreachable;
+      }
+      await _safeClose();
+      return ConnectStatus.unknownError;
+    } catch (_) {
+      await _safeClose();
+      return ConnectStatus.unknownError;
     }
+  }
 
-    // Leitura (se quiser depurar recebimento; manter opcional)
-    _rx = _conn!.input?.listen(
-      (data) {
-        // print('RX(${data.length}): $data');
-      },
-      onDone: () {
-        // Conexão encerrada pelo remoto
-        _conn = null;
-      },
-      onError: (_) {
-        _conn = null;
-      },
-      cancelOnError: true,
-    );
-
-    // Salva prefs para reconectar na próxima execução
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kLastAddress, address);
-    if ((name ?? '').isNotEmpty) {
-      await prefs.setString(_kLastName, name!);
-    }
-
-    return true;
+  Future<void> _safeClose() async {
+    try {
+      await _rx?.cancel();
+    } catch (_) {}
+    _rx = null;
+    try {
+      await _conn?.close();
+    } catch (_) {}
+    _conn = null;
   }
 
   /// Desconecta (não apaga prefs; a UI decide se quer "esquecer").
-  void disconnect() {
-    _rx?.cancel();
-    _rx = null;
-    _conn?.close();
-    _conn = null;
-  }
+  Future<void> disconnect() => _safeClose();
 
   /// "Esquecer" impressora salva (opcional: chamar na tela de Config).
   Future<void> forgetSavedPrinter() async {
@@ -141,11 +198,11 @@ class BluetoothService {
     currentName = null;
   }
 
-  /// Envia bytes crus para a impressora.
+  /// Envia bytes crus para a impressora (no-op se desconectado).
   void sendRaw(List<int> bytes) {
     final c = _conn;
     if (c == null || !c.isConnected) return;
     c.output.add(Uint8List.fromList(bytes));
-    // Opcional: aguardar flush → c.output.allSent;
+    // opcional: c.output.allSent;
   }
 }
