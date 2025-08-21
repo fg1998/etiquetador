@@ -14,70 +14,117 @@ class BluetoothService {
   String? currentAddress;
   String? currentName;
 
-  bool get connected => _conn != null;
+  // ======= Chaves de preferência =======
+  static const _kLastAddress = 'last_address';
+  static const _kLastName = 'last_name';
 
+  // ======= Estado =======
+  bool get connected => (_conn?.isConnected ?? false);
+
+  // ======= Permissões + enable BT =======
+  Future<void> _ensurePermissions() async {
+    // Android 12+ precisa de BLUETOOTH_CONNECT/SCAN; anteriores usavam location.
+    final perms = <Permission>[
+      Permission.bluetooth,
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+      Permission.location,
+    ];
+
+    for (final p in perms) {
+      final s = await p.status;
+      if (!s.isGranted) {
+        await p.request();
+      }
+    }
+
+    // Garantir que o BT esteja ligado
+    final inst = FlutterBluetoothSerial.instance;
+    try {
+      final state = await inst.state;
+      if (state != BluetoothState.STATE_ON) {
+        await inst.requestEnable();
+      }
+    } catch (_) {
+      // Ignora exceção de plataformas não-Android
+    }
+  }
+
+  /// Tenta preparar o serviço e reconectar na última impressora salva.
   Future<void> bootstrap() async {
     await _ensurePermissions();
-    await maybeReconnect();
-  }
 
-  Future<void> _ensurePermissions() async {
-    final statuses = await [
-      Permission.bluetoothConnect,
-      Permission.bluetoothScan,
-      Permission.locationWhenInUse, // para Android <= 11
-    ].request();
-
-    if (statuses[Permission.bluetoothConnect]?.isGranted != true ||
-        statuses[Permission.bluetoothScan]?.isGranted != true) {
-      if (statuses[Permission.bluetoothConnect]?.isPermanentlyDenied == true ||
-          statuses[Permission.bluetoothScan]?.isPermanentlyDenied == true) {
-        await openAppSettings();
-      }
-      return;
-    }
-    final state = await FlutterBluetoothSerial.instance.state;
-    if (state == BluetoothState.STATE_OFF) {
-      await FlutterBluetoothSerial.instance.requestEnable();
-    }
-  }
-
-  Future<void> maybeReconnect() async {
     final prefs = await SharedPreferences.getInstance();
-    final addr = prefs.getString('last_address');
-    final name = prefs.getString('last_name');
-    if (addr != null) {
-      await connect(addr, name: name);
+    final addr = prefs.getString(_kLastAddress);
+    final name = prefs.getString(_kLastName);
+
+    // Se já estamos conectados, mantém.
+    if (connected) return;
+
+    if (addr != null && addr.isNotEmpty) {
+      try {
+        await connect(addr, name: name);
+      } catch (e) {
+        // Falhou na reconexão; deixa desconectado para a UI abrir o seletor.
+        // print('Falha ao reconectar em $addr: $e');
+        disconnect();
+      }
     }
   }
 
-  Future<List<BluetoothDevice>> bondedDevices() async =>
-      FlutterBluetoothSerial.instance.getBondedDevices();
+  Future<List<BluetoothDevice>> bondedDevices() async {
+    await _ensurePermissions();
+    return FlutterBluetoothSerial.instance.getBondedDevices();
+  }
 
+  /// Conecta e **salva** o endereço/nome para futuras reconexões.
   Future<bool> connect(String address, {String? name}) async {
-    try {
-      final c = await BluetoothConnection.toAddress(address);
-      _conn = c;
-      currentAddress = address;
-      if (name != null && name.isNotEmpty) {
-        currentName = name;
-      }
+    await _ensurePermissions();
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('last_address', address);
-      if (currentName != null && currentName!.isNotEmpty) {
-        await prefs.setString('last_name', currentName!);
-      }
-
-      _rx?.cancel();
-      _rx = c.input?.listen((_) {}, onDone: disconnect, onError: (_) => disconnect());
+    // Se já estiver conectado ao mesmo endereço, mantém.
+    if (connected && currentAddress == address) {
       return true;
-    } catch (e) {
-      disconnect();
-      return false;
     }
+
+    // Fecha conexão anterior, se houver.
+    await _rx?.cancel();
+    _rx = null;
+    await _conn?.close();
+    _conn = null;
+
+    final c = await BluetoothConnection.toAddress(address);
+    _conn = c;
+    currentAddress = address;
+    if (name != null && name.isNotEmpty) {
+      currentName = name;
+    }
+
+    // Leitura (se quiser depurar recebimento; manter opcional)
+    _rx = _conn!.input?.listen(
+      (data) {
+        // print('RX(${data.length}): $data');
+      },
+      onDone: () {
+        // Conexão encerrada pelo remoto
+        _conn = null;
+      },
+      onError: (_) {
+        _conn = null;
+      },
+      cancelOnError: true,
+    );
+
+    // Salva prefs para reconectar na próxima execução
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kLastAddress, address);
+    if ((name ?? '').isNotEmpty) {
+      await prefs.setString(_kLastName, name!);
+    }
+
+    return true;
   }
 
+  /// Desconecta (não apaga prefs; a UI decide se quer "esquecer").
   void disconnect() {
     _rx?.cancel();
     _rx = null;
@@ -85,10 +132,20 @@ class BluetoothService {
     _conn = null;
   }
 
+  /// "Esquecer" impressora salva (opcional: chamar na tela de Config).
+  Future<void> forgetSavedPrinter() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kLastAddress);
+    await prefs.remove(_kLastName);
+    currentAddress = null;
+    currentName = null;
+  }
+
+  /// Envia bytes crus para a impressora.
   void sendRaw(List<int> bytes) {
-    if (_conn != null) {
-      _conn!.output.add(Uint8List.fromList(bytes));
-      _conn!.output.allSent;
-    }
+    final c = _conn;
+    if (c == null || !c.isConnected) return;
+    c.output.add(Uint8List.fromList(bytes));
+    // Opcional: aguardar flush → c.output.allSent;
   }
 }

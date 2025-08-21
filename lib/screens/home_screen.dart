@@ -33,31 +33,37 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  /// Regras:
-  /// - Se existir impressora usada por último (em SharedPreferences), tenta reconectar.
-  /// - Se a reconexão falhar, **aí sim** abre a lista para o usuário escolher.
-  /// - Se não existir impressora salva, não abre lista automaticamente.
   Future<void> _maybeAskPrinter() async {
     final bt = BluetoothService.instance;
-    await bt.bootstrap(); // tenta reconectar por dentro (maybeReconnect)
 
-    if (!bt.connected) {
-      final prefs = await SharedPreferences.getInstance();
-      final last = prefs.getString('last_address');
-      // Só abre picker se havia uma impressora salva e a tentativa automática falhou
-      if (last != null) {
-        final bonded = await bt.bondedDevices();
-        if (bonded.isEmpty) return;
-        final device = await _pickDevice(
-          bonded
-              .map<(String, String)>((e) => (e.name ?? '(sem nome)', e.address))
-              .toList(),
-        );
-        if (device != null) {
-          setState(() => _connecting = true);
-          await bt.connect(device.$2, name: device.$1);
-          setState(() => _connecting = false);
-        }
+    // Se por algum motivo a tela inicial for aberta antes do main() terminar,
+    // chamamos bootstrap de novo de forma idempotente.
+    await bt.bootstrap();
+
+    if (bt.connected) return; // já reconectou automático
+
+    // Reconexão falhou ou não havia impressora salva → abre seletor
+    final bonded = await bt.bondedDevices();
+    if (bonded.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nenhum dispositivo pareado')),
+      );
+      return;
+    }
+
+    final device = await _pickDevice(
+      bonded
+          .map<(String, String)>((e) => (e.name ?? '(sem nome)', e.address))
+          .toList(),
+    );
+
+    if (device != null) {
+      setState(() => _connecting = true);
+      try {
+        await bt.connect(device.$2, name: device.$1);
+      } finally {
+        if (mounted) setState(() => _connecting = false);
       }
     }
   }
@@ -86,8 +92,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _editItem({Item? item, int? index, bool duplicate = false}) async {
-    final nomeCtrl = TextEditingController(text: duplicate && item != null ? '${item.nome} (2)' : item?.nome ?? '');
+  Future<void> _editItem(
+      {Item? item, int? index, bool duplicate = false}) async {
+    final nomeCtrl = TextEditingController(
+        text:
+            duplicate && item != null ? '${item.nome} (2)' : item?.nome ?? '');
     final diasCtrl = TextEditingController(text: item?.dias.toString() ?? '');
     Refrigeracao refType = item?.refrigeracao ?? Refrigeracao.ambiente;
 
@@ -96,7 +105,9 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (_) => StatefulBuilder(
         builder: (dialogCtx, setModalState) {
           return AlertDialog(
-            title: Text(duplicate ? 'Duplicar produto' : (item == null ? 'Novo produto' : 'Editar produto')),
+            title: Text(duplicate
+                ? 'Duplicar produto'
+                : (item == null ? 'Novo produto' : 'Editar produto')),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -114,7 +125,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 8),
                   DropdownButtonFormField<Refrigeracao>(
                     value: refType,
-                    decoration: const InputDecoration(labelText: 'Refrigeração'),
+                    decoration:
+                        const InputDecoration(labelText: 'Refrigeração'),
                     isExpanded: true,
                     items: const [
                       DropdownMenuItem(
@@ -138,13 +150,16 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancelar')),
               FilledButton(
                 onPressed: () {
                   final d = int.tryParse(diasCtrl.text.trim());
                   final n = nomeCtrl.text.trim();
                   if (n.isEmpty || d == null) return;
-                  Navigator.pop(context, Item(nome: n, dias: d, refrigeracao: refType));
+                  Navigator.pop(
+                      context, Item(nome: n, dias: d, refrigeracao: refType));
                 },
                 child: const Text('Salvar'),
               ),
@@ -171,8 +186,12 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('Excluir produto'),
         content: const Text('Tem certeza que deseja excluir este produto?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Excluir')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Excluir')),
         ],
       ),
     );
@@ -197,7 +216,8 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_rounded),
-            onPressed: () => Navigator.pushNamed(context, ConfigScreen.route).then((_) => setState(() {})),
+            onPressed: () => Navigator.pushNamed(context, ConfigScreen.route)
+                .then((_) => setState(() {})),
           ),
         ],
       ),
@@ -228,12 +248,16 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(headerText, style: const TextStyle(color: Colors.black54)),
+                              Text(headerText,
+                                  style:
+                                      const TextStyle(color: Colors.black54)),
                             ],
                           ),
                         ),
                         Icon(
-                          bt.connected ? Icons.print_rounded : Icons.print_disabled_rounded,
+                          bt.connected
+                              ? Icons.print_rounded
+                              : Icons.print_disabled_rounded,
                           color: bt.connected ? Colors.green : Colors.red,
                         ),
                       ],
@@ -247,7 +271,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: ProductCard(
                         item: _items[i],
                         onEdit: () => _editItem(item: _items[i], index: i),
-                        onDuplicate: () => _editItem(item: _items[i], index: i, duplicate: true),
+                        onDuplicate: () => _editItem(
+                            item: _items[i], index: i, duplicate: true),
                         onDelete: () => _removeItem(i),
                         onPrint: () => PrintService.printItem(_items[i]),
                       ),
