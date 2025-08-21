@@ -1,8 +1,17 @@
 [
-  { "nome": "Arroz",          "dias": 10, "refrigeracao": "ambiente"   },
-  { "nome": "Feijão",         "dias": 5,  "refrigeracao": "refrigerado"},
-  { "nome": "Feijão preto",   "dias": 6,  "refrigeracao": "congelado"  },
-  { "nome": "Macarrão",       "dias": 8,  "refrigeracao": "ambiente"   },
-  { "nome": "Molho de tomate","dias": 3,  "refrigeracao": "refrigerado"},
-  { "nome": "Carne moída",    "dias": 2,  "refrigeracao": "congelado"  }
+  { "nome": "Arroz cru", "dias": 90, "refrigeracao": "temperatura ambiente" },
+  { "nome": "Feijão cru", "dias": 30, "refrigeracao": "temperatura ambiente" },
+  { "nome": "Feijão cozido", "dias": 5, "refrigeracao": "refrigerado" },
+  { "nome": "Creme de leite", "dias": 3, "refrigeracao": "refrigerado" },
+  { "nome": "Leite condensado", "dias": 7, "refrigeracao": "refrigerado" },
+  { "nome": "Molho de tomate", "dias": 5, "refrigeracao": "refrigerado" },
+  { "nome": "Sal", "dias": 180, "refrigeracao": "temperatura ambiente" },
+  { "nome": "Açúcar", "dias": 180, "refrigeracao": "temperatura ambiente" },
+  { "nome": "Fubá", "dias": 180, "refrigeracao": "temperatura ambiente" },
+  { "nome": "Farinha de trigo", "dias": 180, "refrigeracao": "temperatura ambiente" },
+  { "nome": "Farinha de rosca", "dias": 90, "refrigeracao": "temperatura ambiente" },
+  { "nome": "Bacon (in natura)", "dias": 7, "refrigeracao": "refrigerado" },
+  { "nome": "Mostarda", "dias": 30, "refrigeracao": "refrigerado" },
+  { "nome": "Ketchup", "dias": 60, "refrigeracao": "refrigerado" },
+  { "nome": "Maionese", "dias": 15, "refrigeracao": "refrigerado" }
 ]
