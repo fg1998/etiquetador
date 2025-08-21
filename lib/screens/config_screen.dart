@@ -14,8 +14,8 @@ class ConfigScreen extends StatefulWidget {
 }
 
 class _ConfigScreenState extends State<ConfigScreen> {
-  final _largCtrl = TextEditingController();
-  final _altCtrl  = TextEditingController();
+
+  final _altCtrl = TextEditingController();
   final _userCtrl = TextEditingController();
   String? _addr;
   String? _name;
@@ -28,33 +28,37 @@ class _ConfigScreenState extends State<ConfigScreen> {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    _largCtrl.text = (prefs.getInt('cfg_largura') ?? 48).toString();
-    _altCtrl.text  = (prefs.getInt('cfg_altura')  ?? 30).toString();
-    _addr = BluetoothService.instance.currentAddress ?? prefs.getString('last_address');
-    _name = BluetoothService.instance.currentName ?? prefs.getString('last_name');
+
+    _altCtrl.text = (prefs.getInt('cfg_altura') ?? 95).toString();
+    _addr = BluetoothService.instance.currentAddress ??
+        prefs.getString('last_address');
+    _name =
+        BluetoothService.instance.currentName ?? prefs.getString('last_name');
     _userCtrl.text = (prefs.getString('user_name') ?? 'Nome Responsável');
     if (mounted) setState(() {});
   }
 
   Future<void> _save() async {
     final prefs = await SharedPreferences.getInstance();
-    final larg = int.tryParse(_largCtrl.text.trim()) ?? 48;
-    final alt  = int.tryParse(_altCtrl.text.trim())  ?? 30;
-    await prefs.setInt('cfg_largura', larg);
+    final alt = int.tryParse(_altCtrl.text.trim()) ?? 30;
     await prefs.setInt('cfg_altura', alt);
     await prefs.setString(
       'user_name',
-      _userCtrl.text.trim().isEmpty ? 'Responsável pelo setor' : _userCtrl.text.trim(),
+      _userCtrl.text.trim().isEmpty
+          ? 'Resp pelo setor'
+          : _userCtrl.text.trim(),
     );
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Configuração salva')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Configuração salva')));
   }
 
   Future<void> _pickAndConnect() async {
     final bt = BluetoothService.instance;
     final list = await bt.bondedDevices();
     if (list.isEmpty && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nenhum dispositivo pareado')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nenhum dispositivo pareado')));
       return;
     }
     final chosen = await showModalBottomSheet<BluetoothDevice>(
@@ -90,7 +94,8 @@ class _ConfigScreenState extends State<ConfigScreen> {
         await prefs.setString('last_address', chosen.address);
         await prefs.setString('last_name', chosen.name ?? '(sem nome)');
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Falha ao conectar')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Falha ao conectar')));
       }
     }
   }
@@ -102,7 +107,8 @@ class _ConfigScreenState extends State<ConfigScreen> {
       _addr = null;
       _name = null;
     });
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Desconectado')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Desconectado')));
   }
 
   Future<void> _confirmAndResetItems() async {
@@ -111,13 +117,16 @@ class _ConfigScreenState extends State<ConfigScreen> {
       builder: (_) => AlertDialog(
         title: const Text('Zerar itens do usuário'),
         content: const Text(
-          'Isto removerá os itens salvos por você e retornará uma nova lista com produtos padrão. '
-          'Use apenas se tiver certeza, pois os itens podem ser perdidos '
-          '\n\nDeseja continuar?'
-        ),
+            'Isto removerá os itens salvos por você e retornará uma nova lista com produtos padrão. '
+            'Use apenas se tiver certeza, pois os itens podem ser perdidos '
+            '\n\nDeseja continuar?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Zerar')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Zerar')),
         ],
       ),
     );
@@ -147,22 +156,35 @@ class _ConfigScreenState extends State<ConfigScreen> {
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Etiqueta', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
-                Row(children: [
-                  Expanded(child: TextField(controller: _largCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Largura (mm)'))),
-                  const SizedBox(width: 12),
-                  Expanded(child: TextField(controller: _altCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Altura (mm)'))),
-                ]),
-                const SizedBox(height: 12),
-                TextField(controller: _userCtrl, decoration: const InputDecoration(labelText: 'Nome do responsável')),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: FilledButton(onPressed: _save, child: const Text('Salvar')),
-                ),
-              ]),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Detalhes da etiqueta',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    Row(children: [
+                      Expanded(
+                          child: TextField(
+                              controller: _altCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                  labelText: 'Salto após imprimir (pontos)'))),
+                    ]),
+                    const SizedBox(height: 12),
+                    TextField(
+                        controller: _userCtrl,
+                        decoration: const InputDecoration(
+                            labelText: 'Nome do responsável')),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: FilledButton(
+                          onPressed: _save, child: const Text('Salvar')),
+                    ),
+                  ]),
             ),
           ),
 
@@ -172,40 +194,47 @@ class _ConfigScreenState extends State<ConfigScreen> {
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Impressora', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.print_rounded),
-                  title: const Text('Impressora atual'),
-                  subtitle: Text(addrTxt),
-                ),
-                const SizedBox(height: 8),
-                Row(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    OutlinedButton.icon(
-                      onPressed: _disconnect,
-                      icon: const Icon(Icons.link_off),
-                      label: const Text('Desconectar'),
+                    Text('Impressora',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.print_rounded),
+                      title: const Text('Impressora atual'),
+                      subtitle: Text(addrTxt),
                     ),
-                    const SizedBox(width: 12),
-                    FilledButton.icon(
-                      onPressed: _pickAndConnect,
-                      icon: const Icon(Icons.link),
-                      label: const Text('Conectar'),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: _disconnect,
+                          icon: const Icon(Icons.link_off),
+                          label: const Text('Desconectar'),
+                        ),
+                        const SizedBox(width: 12),
+                        FilledButton.icon(
+                          onPressed: _pickAndConnect,
+                          icon: const Icon(Icons.link),
+                          label: const Text('Conectar'),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                if (BluetoothService.instance.connected)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: Text('Conectado', style: TextStyle(color: Colors.green.shade700)),
-                    ),
-                  ),
-              ]),
+                    if (BluetoothService.instance.connected)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: Text('Conectado',
+                              style: TextStyle(color: Colors.green.shade700)),
+                        ),
+                      ),
+                  ]),
             ),
           ),
 
@@ -215,15 +244,21 @@ class _ConfigScreenState extends State<ConfigScreen> {
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Dados do usuário', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.delete_sweep_rounded),
-                  label: const Text('Zerar itens (itens_usuario.json)'),
-                  onPressed: _confirmAndResetItems,
-                ),
-              ]),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Dados do usuário',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.delete_sweep_rounded),
+                      label: const Text('Zerar itens (itens_usuario.json)'),
+                      onPressed: _confirmAndResetItems,
+                    ),
+                  ]),
             ),
           ),
         ],
